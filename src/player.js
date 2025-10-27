@@ -22,6 +22,8 @@ export class Player {
         // Shooting
         this.lastShootTime = 0;
         this.shootCooldown = 200; // ms
+        this.reloadTime = 0;
+        this.isReloading = false;
         
         // Mesh
         this.mesh = null;
@@ -94,6 +96,15 @@ export class Player {
     }
     
     update(deltaTime) {
+        // Handle reload timer
+        if (this.isReloading) {
+            const now = Date.now();
+            if (now >= this.reloadTime) {
+                this.ammo = this.maxAmmo;
+                this.isReloading = false;
+            }
+        }
+        
         if (!this.isLocal && this.mesh) {
             // Smooth interpolation for remote players
             this.position.lerp(this.targetPosition, 0.2);
@@ -109,7 +120,7 @@ export class Player {
         if (now - this.lastShootTime < this.shootCooldown) {
             return false;
         }
-        if (this.ammo <= 0) {
+        if (this.ammo <= 0 || this.isReloading) {
             return false;
         }
         return true;
@@ -121,11 +132,10 @@ export class Player {
         this.lastShootTime = Date.now();
         this.ammo--;
         
-        // Reload after 1 second if empty
-        if (this.ammo <= 0) {
-            setTimeout(() => {
-                this.ammo = this.maxAmmo;
-            }, 1000);
+        // Start reload if empty
+        if (this.ammo <= 0 && !this.isReloading) {
+            this.isReloading = true;
+            this.reloadTime = Date.now() + 1000; // 1 second reload
         }
         
         return true;

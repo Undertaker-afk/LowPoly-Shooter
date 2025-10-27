@@ -21,6 +21,9 @@ export class Game {
         this.players = {};
         this.isRunning = false;
         
+        // Network update rate
+        this.NETWORK_UPDATE_RATE = 0.1; // 10% of frames
+        
         // Input
         this.keys = {};
         this.mouse = { x: 0, y: 0 };
@@ -63,9 +66,6 @@ export class Game {
         
         // Set up controls
         this.setupControls();
-        
-        // Get UI reference from app
-        this.ui = document.querySelector('#ui').__vueApp || this;
         
         // Start game loop
         this.isRunning = true;
@@ -249,15 +249,18 @@ export class Game {
         
         // Check for hits
         const raycaster = new THREE.Raycaster(this.camera.position, direction);
-        const intersects = raycaster.intersectObjects(
-            Array.from(this.remotePlayers.values()).map(p => p.mesh),
-            false
-        );
+        
+        // Filter to only players with valid meshes
+        const targetMeshes = Array.from(this.remotePlayers.values())
+            .filter(p => p.mesh)
+            .flatMap(p => p.mesh.children);
+        
+        const intersects = raycaster.intersectObjects(targetMeshes, false);
         
         if (intersects.length > 0) {
-            // Find which player was hit
+            // Find which player was hit by checking parent groups
             for (const [peerId, player] of this.remotePlayers.entries()) {
-                if (player.mesh === intersects[0].object) {
+                if (player.mesh && player.mesh.children.includes(intersects[0].object)) {
                     this.network.broadcast('hit', {
                         targetId: peerId,
                         damage: 10
@@ -347,7 +350,7 @@ export class Game {
         }
         
         // Send position update
-        if (Math.random() < 0.1) { // Send updates 10% of frames
+        if (Math.random() < this.NETWORK_UPDATE_RATE) { // Send updates periodically
             this.network.broadcast('position', {
                 name: this.playerName,
                 position: this.localPlayer.position,
@@ -358,6 +361,11 @@ export class Game {
         // Update remote players
         for (const player of this.remotePlayers.values()) {
             player.update(deltaTime);
+        }
+        
+        // Update local player (for reload timer)
+        if (this.localPlayer) {
+            this.localPlayer.update(deltaTime);
         }
     }
     
